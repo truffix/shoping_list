@@ -9,6 +9,7 @@ import sys
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
+import re
 
 dff = pd.DataFrame(columns=['Название', 'Адрес', 'X', 'Y'])
 api_key = api_yandex
@@ -122,10 +123,17 @@ def nearer_magazin(latitude_i, longitude_i):
 
 
 def write_list(item):
+    items = re.split('[ ,;]+', item)
     shop_list = pd.read_csv('shopping_list.csv')
-    shop_list.loc[len(shop_list)] = item
+    len_items = len(items)
+    if len(items) == 1:
+        shop_list.loc[len(shop_list)] = item
+    else:
+        for i in items:
+            shop_list.loc[len(shop_list)] = i
     shop_list.to_csv('shopping_list.csv', index=False)
-    return shop_list
+
+    return shop_list, len_items
 
 
 def del_item(item):
@@ -154,8 +162,12 @@ async def add_item(message: types.Message) -> None:
         shop_list = pd.read_csv('shopping_list.csv')
 
         if list(shop_list.loc[shop_list['Товар'] == message.text].count())[0] == 0:
-            shop_list = write_list(message.text)
-            await message.answer(f'Добавлен товар "{message.text}"')
+            shop_list, len_items = write_list(message.text)
+            if len_items == 1:
+                await message.answer(f'Добавлен товар "{message.text}"')
+            else:
+                await message.answer(f'Добавлены товары "{message.text}"')
+
         else:
             shop_list = del_item(message.text)
             await message.answer(f'Удален товар "{message.text}"')
