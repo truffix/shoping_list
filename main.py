@@ -128,7 +128,7 @@ def nearer_magazin(latitude_i, longitude_i):
 
 
 def write_list(item):
-    items = re.split('[ ,;]+', item)
+    items = re.split('[,;]+', item)
     shop_list = pd.read_csv('shopping_list.csv')
     len_items = len(items)
     if len(items) == 1:
@@ -164,6 +164,7 @@ async def cmd_start(message: types.Message):
 
 @dp.message()
 async def add_item(message: types.Message) -> None:
+
     if message.text == 'Ближайший магазин':
         latitude_i, longitude_i = get_location(get_icloud_session(loggin=loggin, password=password))
         min_magazin, min_dist = nearer_magazin(latitude_i, longitude_i)
@@ -171,6 +172,14 @@ async def add_item(message: types.Message) -> None:
     elif message.text == 'Хорошо':
         global stop
         stop = stop_mess()
+        shop_list = pd.read_csv('shopping_list.csv')
+        kb = []
+        kb_list = list(shop_list['Товар'])
+        for i in kb_list:
+            kb.append([types.KeyboardButton(text=i)])
+        keyboard = types.ReplyKeyboardMarkup(keyboard=kb)
+        await message.answer("Твой список покупок", reply_markup=keyboard)
+
     else:
         shop_list = pd.read_csv('shopping_list.csv')
 
