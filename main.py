@@ -155,7 +155,6 @@ def stop_mess():
 
 dp = Dispatcher()
 
-
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     await message.answer("Добавь товар")
@@ -218,12 +217,15 @@ async def main() -> None:
                 print('stop')
                 await asyncio.sleep(7200)
                 stop = 0
+            elif len(pd.read_csv('shopping_list.csv')) == 0:
+                print('empty')
+                await asyncio.sleep(10)
             else:
                 latitude_i, longitude_i = get_location(get_icloud_session(loggin=loggin, password=password))
                 min_magazin, min_dist = nearer_magazin(latitude_i, longitude_i)
                 if min_dist < 70:
                     keyboard = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text='Хорошо')]])
-                    await bot.send_message(chat_id=447999564, text=f'Ты рядом с магазином {min_magazin} посмотри в список',reply_markup=keyboard)
+                    await bot.send_message(chat_id=447999564, text=f'Ты рядом с магазином {min_magazin} посмотри в список', reply_markup=keyboard)
                     print(f'Магазин {min_magazin}')
                 else:
                     print(f'Ближайший магазин {min_magazin} {datetime.datetime.now()}')
