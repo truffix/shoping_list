@@ -10,6 +10,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 import re
+import datetime
+
 
 dff = pd.DataFrame(columns=['Название', 'Адрес', 'X', 'Y'])
 api_key = api_yandex
@@ -18,7 +20,7 @@ mag_list = ['Лента', 'Макси', 'Пятерочка', 'Аллея', 'М�
 
 def get_magazin(api_key, mag_list):
     for mag in mag_list:
-        link = link = f'https://search-maps.yandex.ru/v1/?text={mag},продукты,Вологда&type=biz&lang=ru_RU&bbox=59.167854,39.815547~59.237225,39.931637&results=50&apikey={api_key}'
+        link = f'https://search-maps.yandex.ru/v1/?text={mag},продукты,Вологда&type=biz&lang=ru_RU&bbox=59.167854,39.815547~59.237225,39.931637&results=50&apikey={api_key}'
         response = get(link)
         mags = response.json()
         for magazin in mags['features']:
@@ -30,8 +32,7 @@ def get_magazin(api_key, mag_list):
     dff.to_csv('mag_data.csv', index=False)
     return dff
 
-
-def get_location(loggin, password):
+def get_icloud_session(loggin, password):
     api = PyiCloudService(loggin, password)
     if api.requires_2fa:
         print("Two-factor authentication required.")
@@ -71,6 +72,10 @@ def get_location(loggin, password):
         if not api.validate_verification_code(device, code):
             print("Failed to verify verification code")
             sys.exit(1)
+    return api
+
+
+def get_location(api):
 
     latitude_i = api.devices[0].location()['latitude']
     longitude_i = api.devices[0].location()['longitude']
@@ -142,6 +147,11 @@ def del_item(item):
     shop_list.to_csv('shopping_list.csv', index=False)
     return shop_list
 
+def stop_mess():
+    global stop
+    stop = 1
+    return stop
+
 
 dp = Dispatcher()
 
@@ -155,9 +165,12 @@ async def cmd_start(message: types.Message):
 @dp.message()
 async def add_item(message: types.Message) -> None:
     if message.text == 'Ближайший магазин':
-        latitude_i, longitude_i = get_location(loggin=loggin, password=password)
+        latitude_i, longitude_i = get_location(get_icloud_session(loggin=loggin, password=password))
         min_magazin, min_dist = nearer_magazin(latitude_i, longitude_i)
         await message.answer(f'{min_magazin}, {round(min_dist / 1000, 2)} км')
+    elif message.text == 'Хорошо':
+        global stop
+        stop = stop_mess()
     else:
         shop_list = pd.read_csv('shopping_list.csv')
 
@@ -186,24 +199,35 @@ async def add_item(message: types.Message) -> None:
 
 async def main() -> None:
     bot = Bot(tele_token, parse_mode=ParseMode.HTML)
-
+    global stop
+    stop = 0
     # await bot.send_message(chat_id=447999564, text='text')
     async def send_not(bot):
         while True:
-            latitude_i, longitude_i = get_location(loggin=loggin, password=password)
-            min_magazin, min_dist = nearer_magazin(latitude_i, longitude_i)
-            if min_dist < 10:
-                await bot.send_message(chat_id=447999564, text='Ты рядом с магазином посмотри в список')
-                print(f'Магазин {min_magazin}')
+            global stop
+            if stop == 1:
+                print('stop')
+                await asyncio.sleep(7200)
+                stop = 0
             else:
-                print(f'Ближайший магазин {min_magazin}')
-            await asyncio.sleep(15)
+                latitude_i, longitude_i = get_location(get_icloud_session(loggin=loggin, password=password))
+                min_magazin, min_dist = nearer_magazin(latitude_i, longitude_i)
+                if min_dist < 70:
+                    keyboard = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text='Хорошо')]])
+                    await bot.send_message(chat_id=447999564, text=f'Ты рядом с магазином {min_magazin} посмотри в список',reply_markup=keyboard)
+                    print(f'Магазин {min_magazin}')
+                else:
+                    print(f'Ближайший магазин {min_magazin} {datetime.datetime.now()}')
+                await asyncio.sleep(5)
+                print('go')
 
     async def get_mag_evry():
         while True:
             get_magazin(api_key=api_key, mag_list=mag_list)
             print('Магазины обновлены')
             await asyncio.sleep(2678400)
+
+    get_icloud_session(loggin, password)
 
     async with asyncio.TaskGroup() as tg:
         tg.create_task(dp.start_polling(bot))
